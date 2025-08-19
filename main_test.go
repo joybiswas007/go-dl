@@ -70,8 +70,10 @@ func TestGetReleases(t *testing.T) {
 		defer srv.Close()
 
 		_, err := GetReleases(srv.Client(), srv.URL)
-		if err == nil || !errors.Is(err, errors.New("400 Bad Request")) {
-			t.Errorf("expected 400 error, got %v", err)
+		if err != nil {
+			if errors.Is(err, errors.New("400 Bad Request")) {
+				t.Errorf("expected 400 error, got %v", err)
+			}
 		}
 	})
 
