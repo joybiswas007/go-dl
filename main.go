@@ -27,7 +27,7 @@ func main() {
 	flag.Parse()
 
 	if doctor {
-		cmds := []string{"wget", "tar", "sudo", "chown"}
+		cmds := []string{"wget", "tar"}
 		for _, cmd := range cmds {
 			if _, err := exec.LookPath(cmd); err != nil {
 				fmt.Printf("❌ \"%s\" is not installed. Please install it to proceed.\n", cmd)
@@ -54,6 +54,12 @@ func main() {
 	for i, r := range releases {
 		rv := WithVPrefix(r.Version)
 
+		// If both version are same continue to next version
+		// And we compare them together
+		if local == rv {
+			continue
+		}
+
 		switch semver.Compare(local, rv) {
 		case -1:
 			if check {
@@ -61,11 +67,8 @@ func main() {
 				return
 			}
 			rmt = append(rmt, remote{idx: i, version: rv})
-		case 0:
-			fmt.Printf("You are using the latest version. Local: %s, Remote: %s\n", local, rv)
-			return
-		case 1:
-			fmt.Printf("Local version (%s) is ahead of remote (%s)\n", local, rv)
+		case 0, 1:
+			fmt.Println("You are using the latest version.")
 			return
 		}
 	}
@@ -79,18 +82,26 @@ func main() {
 
 			dlPath := fmt.Sprintf("/tmp/%s", f.Filename)
 
-			extractCmd := []string{"tar", "-xzvf", dlPath}
+			extractCmd := []string{"tar", "-xzvf", dlPath, "-C", "/tmp"}
 			execCmd(extractCmd)
 
 			rmCmd := []string{"rm", "-rf", dlPath}
 			execCmd(rmCmd)
 
+			// Now check if already installed version exist
+			// If exist remove the directory
+			existingDir := "/usr/local/go"
+			if _, err := os.Stat(existingDir); err == nil {
+				execCmd([]string{"sudo", "rm", "-rf", existingDir})
+			}
+
 			src := "/tmp/go"
+
+			permsCmd := []string{"sudo", "chown", "-R", "root:root", src}
+			execCmd(permsCmd)
+
 			mvCmd := []string{"sudo", "mv", "-v", src, "/usr/local"}
 			execCmd(mvCmd)
-
-			permsCmd := []string{"sudo", "chown", "-R", "root:root", "/usr/local/go"}
-			execCmd(permsCmd)
 
 			checkGoCmd := []string{"go", "version"}
 			execCmd(checkGoCmd)
@@ -145,7 +156,6 @@ func GetReleases(client *http.Client, baseURL string) (Releases, error) {
 	}
 	defer resp.Body.Close()
 
-	// Ensure we got 200 OK; otherwise return an error with the status text.
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New(resp.Status)
 	}
