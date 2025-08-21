@@ -3,39 +3,39 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 
 	"golang.org/x/mod/semver"
 )
 
-func WithVPrefix(v string) string {
-	// v: "go1.25.0" or "1.25.0"
-	v = strings.TrimPrefix(v, "go")
-	if !strings.HasPrefix(v, "v") {
-		v = "v" + v
-	}
-	return v
-}
-
-func cmp(a, b string) int {
-	return semver.Compare(WithVPrefix(a), WithVPrefix(b))
-}
-
 func main() {
-	gid := os.Getgid()
-	uid := os.Getuid()
+	var (
+		doctor bool
+		check  bool
+	)
 
-	if gid != 0 || uid != 0 {
-		log.Fatalln("You need to run this as root")
+	flag.BoolVar(&doctor, "doctor", false, "Run a system check to verify that all required packages are installed")
+	flag.BoolVar(&check, "check", false, "Check if a new version of Go is available")
+	flag.Parse()
+
+	if doctor {
+		cmds := []string{"wget", "tar", "sudo", "chown"}
+		for _, cmd := range cmds {
+			if _, err := exec.LookPath(cmd); err != nil {
+				fmt.Printf("❌ \"%s\" is not installed. Please install it to proceed.\n", cmd)
+				continue
+			}
+		}
+		fmt.Println("Dependencies check passed successfully.")
+		return
 	}
 
 	baseURL := "https://go.dev/dl/"
@@ -54,11 +54,18 @@ func main() {
 	for i, r := range releases {
 		rv := WithVPrefix(r.Version)
 
-		switch x := cmp(rv, local); {
-		case x > 0:
+		switch semver.Compare(local, rv) {
+		case -1:
+			if check {
+				fmt.Printf("New version available! Current: %s, Latest: %s\n", local, rv)
+				return
+			}
 			rmt = append(rmt, remote{idx: i, version: rv})
-		case x == 0:
-			fmt.Println("no updates available")
+		case 0:
+			fmt.Printf("You are using the latest version. Local: %s, Remote: %s\n", local, rv)
+			return
+		case 1:
+			fmt.Printf("Local version (%s) is ahead of remote (%s)\n", local, rv)
 			return
 		}
 	}
@@ -75,41 +82,39 @@ func main() {
 			extractCmd := []string{"tar", "-xzvf", dlPath}
 			execCmd(extractCmd)
 
+			rmCmd := []string{"rm", "-rf", dlPath}
+			execCmd(rmCmd)
+
 			src := "/tmp/go"
+			mvCmd := []string{"sudo", "mv", "-v", src, "/usr/local"}
+			execCmd(mvCmd)
 
-			err = filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
+			permsCmd := []string{"sudo", "chown", "-R", "root:root", "/usr/local/go"}
+			execCmd(permsCmd)
 
-				err = os.Chown(path, 0, 0)
-				if err != nil {
-					return err
-				}
-
-				dest := "/usr/local/go"
-				if _, err := os.Stat(dest); err == nil {
-					if err := os.RemoveAll(dest); err != nil {
-						return err
-					}
-				}
-				if err := os.Rename(src, dest); err != nil {
-					return err
-				}
-				return nil
-
-			})
-			if err != nil {
-				log.Fatal(err)
-			}
-
+			checkGoCmd := []string{"go", "version"}
+			execCmd(checkGoCmd)
 		}
 	}
 }
 
+// WithVPrefix normalizes a Go version string to have a leading "v" as required by semver.Compare.
+func WithVPrefix(v string) string {
+	v = strings.TrimPrefix(v, "go")
+	// Ensure the version starts with "v" for semver functions.
+	if !strings.HasPrefix(v, "v") {
+		v = "v" + v
+	}
+	return v
+}
+
+// execCmd runs an external command and streams its stdout/stderr to the current process.
 func execCmd(args []string) {
+	// Create a command: args[0] is the binary, args[1:] are its arguments.
 	cmd := exec.Command(args[0], args[1:]...)
 
+	// Pipe the command's stderr/stdout to this process's stderr/stdout.
+	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 
@@ -118,6 +123,8 @@ func execCmd(args []string) {
 	}
 }
 
+// Limit returns at most the first k elements of xs.
+// If k <= 0 or xs has length <= k, it returns xs unchanged.
 func Limit[T any](xs []T, k int) []T {
 	if k <= 0 || len(xs) <= k {
 		return xs
@@ -125,6 +132,7 @@ func Limit[T any](xs []T, k int) []T {
 	return xs[:k]
 }
 
+// GetReleases fetches release metadata from baseURL using the provided HTTP client.
 func GetReleases(client *http.Client, baseURL string) (Releases, error) {
 	req, err := http.NewRequest(http.MethodGet, baseURL, nil)
 	if err != nil {
@@ -132,11 +140,14 @@ func GetReleases(client *http.Client, baseURL string) (Releases, error) {
 	}
 	req.Header.Set("referer", "https://go.dev/dl/")
 	req.Header.Set("user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	// Ensure we got 200 OK; otherwise return an error with the status text.
 	if resp.StatusCode != http.StatusOK {
 		return nil, errors.New(resp.Status)
 	}
@@ -145,7 +156,6 @@ func GetReleases(client *http.Client, baseURL string) (Releases, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&rl); err != nil {
 		return nil, err
 	}
-
 	return rl, nil
 }
 

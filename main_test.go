@@ -29,7 +29,6 @@ func TestGetReleases(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		t.Helper()
-		//start the mock server
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(releases)
 		}))
@@ -75,6 +74,18 @@ func TestGetReleases(t *testing.T) {
 				t.Errorf("expected 400 error, got %v", err)
 			}
 		}
+	})
+
+	t.Run("semantic verion check", func(t *testing.T) {
+		t.Helper()
+
+		want := "v1.25.0"
+
+		got := WithVPrefix("go1.25.0")
+		if want != got {
+			t.Fatalf("wanted %s, got %s", want, got)
+		}
+
 	})
 
 }
