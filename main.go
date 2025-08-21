@@ -101,19 +101,17 @@ func main() {
 // WithVPrefix normalizes a Go version string to have a leading "v" as required by semver.Compare.
 func WithVPrefix(v string) string {
 	v = strings.TrimPrefix(v, "go")
-	// Ensure the version starts with "v" for semver functions.
 	if !strings.HasPrefix(v, "v") {
 		v = "v" + v
 	}
 	return v
 }
 
-// execCmd runs an external command and streams its stdout/stderr to the current process.
+// execCmd runs an external command and streams its stdin/stdout/stderr to the current process.
 func execCmd(args []string) {
-	// Create a command: args[0] is the binary, args[1:] are its arguments.
 	cmd := exec.Command(args[0], args[1:]...)
 
-	// Pipe the command's stderr/stdout to this process's stderr/stdout.
+	// Pipe the command's stdin/stderr/stdout to this process's stdin/stderr/stdout.
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
