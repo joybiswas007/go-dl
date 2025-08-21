@@ -7,4 +7,6 @@ Make sure `go` is installed and run `go run main.go --doctor` to make sure if al
 
 That's it!
 
-`go run main.go --check` -run this command to check if new version is available.
+Run `go run main.go --check` to check if new version is available.
+
+And running `go run main.go` will automatically check for update and update to newer version if available.
