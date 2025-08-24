@@ -3,110 +3,65 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
-	"golang.org/x/mod/semver"
+	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+const BASE_URL = "https://go.dev/dl/"
+
+var (
+	releases Releases
 )
 
 func main() {
-	var (
-		doctor bool
-		check  bool
-	)
-
-	flag.BoolVar(&doctor, "doctor", false, "Run a system check to verify that all required packages are installed")
-	flag.BoolVar(&check, "check", false, "Check if a new version of Go is available")
-	flag.Parse()
-
-	if doctor {
-		cmds := []string{"wget", "tar"}
-		for _, cmd := range cmds {
-			if _, err := exec.LookPath(cmd); err != nil {
-				fmt.Printf("❌ \"%s\" is not installed. Please install it to proceed.\n", cmd)
-				continue
-			}
-		}
-		fmt.Println("Dependencies check passed successfully.")
-		return
-	}
-
-	baseURL := "https://go.dev/dl/"
-
-	values := url.Values{}
-	values.Add("mode", "json")
-	urlWithParams := fmt.Sprintf("%s?", baseURL) + values.Encode()
-
-	releases, err := GetReleases(&http.Client{}, urlWithParams)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	local := WithVPrefix(runtime.Version())
-	var rmt []remote
-	for i, r := range releases {
-		rv := WithVPrefix(r.Version)
-
-		// If both version are same continue to next version
-		// And we compare them together
-		if local == rv {
-			continue
-		}
-
-		switch semver.Compare(local, rv) {
-		case -1:
-			if check {
-				fmt.Printf("New version available! Current: %s, Latest: %s\n", local, rv)
-				return
-			}
-			rmt = append(rmt, remote{idx: i, version: rv})
-		case 0, 1:
-			fmt.Println("You are using the latest version.")
+	cmds := []string{"wget", "tar"}
+	for _, cmd := range cmds {
+		if _, err := exec.LookPath(cmd); err != nil {
+			fmt.Printf("❌ \"%s\" is not installed. Please install it to proceed.\n", cmd)
 			return
 		}
 	}
-	new := releases[Limit(rmt, 1)[0].idx]
-	var dlURL string
-	for _, f := range new.Files {
-		if runtime.GOARCH == f.Arch && runtime.GOOS == f.Os {
-			dlURL = fmt.Sprintf("%s%s", baseURL, f.Filename)
-			dlCmd := []string{"wget", "-c", "--tries=5", "--read-timeout=10", "-P", "/tmp", dlURL}
-			execCmd(dlCmd)
 
-			dlPath := fmt.Sprintf("/tmp/%s", f.Filename)
+	values := url.Values{}
+	values.Add("mode", "json")
+	urlWithParams := fmt.Sprintf("%s?", BASE_URL) + values.Encode()
 
-			extractCmd := []string{"tar", "-xzvf", dlPath, "-C", "/tmp"}
-			execCmd(extractCmd)
-
-			rmCmd := []string{"rm", "-rf", dlPath}
-			execCmd(rmCmd)
-
-			// Now check if already installed version exist
-			// If exist remove the directory
-			existingDir := "/usr/local/go"
-			if _, err := os.Stat(existingDir); err == nil {
-				execCmd([]string{"sudo", "rm", "-rf", existingDir})
-			}
-
-			src := "/tmp/go"
-
-			permsCmd := []string{"sudo", "chown", "-R", "root:root", src}
-			execCmd(permsCmd)
-
-			mvCmd := []string{"sudo", "mv", "-v", src, "/usr/local"}
-			execCmd(mvCmd)
-
-			checkGoCmd := []string{"go", "version"}
-			execCmd(checkGoCmd)
-		}
+	rls, err := GetReleases(&http.Client{}, urlWithParams)
+	if err != nil {
+		log.Fatal(err)
 	}
+	releases = rls
+
+	var items []list.Item
+	for _, r := range releases {
+		items = append(items, item(r.Version))
+	}
+
+	const defaultWidth = 20
+
+	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
+	l.Title = "Versions available for download"
+	l.SetShowStatusBar(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = titleStyle
+	l.Styles.PaginationStyle = paginationStyle
+	l.Styles.HelpStyle = helpStyle
+
+	m := model{list: l}
+
+	if _, err := tea.NewProgram(m).Run(); err != nil {
+		fmt.Println("Error running program:", err)
+		os.Exit(1)
+	}
+
 }
 
 // WithVPrefix normalizes a Go version string to have a leading "v" as required by semver.Compare.
