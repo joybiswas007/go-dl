@@ -31,6 +31,13 @@ func main() {
 	fmt.Println(banner)
 	var doctor bool
 
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "go-dl - Automate Go Setup\n")
+		fmt.Fprintf(os.Stderr, "=========================\n\n")
+
+		fmt.Fprintf(os.Stderr, "💡 Why go-dl?\n")
+		fmt.Fprintf(os.Stderr, "   • Just select a version and let go-dl handle everything!\n\n")
+	}
 	flag.BoolVar(&doctor, "doctor", false, "Run a system check to verify that all required packages are installed")
 	flag.Parse()
 
@@ -55,6 +62,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	fmt.Printf("OS: %s\n", runtime.GOOS)
+	fmt.Printf("Architecture: %s\n\n", runtime.GOARCH)
 	fmt.Println("Available versions...")
 	for i, r := range releases {
 		if r.Stable {

@@ -1,19 +1,34 @@
-# Go-Up
+# go-dl
 
-**Note**: _THIS IS NOT A GO VERSION MANAGER. The Purpose of this programm is to check if new version of go is available for update. If available you can just updgrade to newer version without mannually downloading them and without any hassle._
+**Automate Go Setup**
 
-## Prerequisite
-Make sure `go`, `tar`, `wget` is installed. 
+**Note**: _`go-dl` IS NOT A VERSION MANAGER. `go-dl` simply eliminates the tedious process of manually downloading Go from Go's website, extracting the tar file, setting up permissions, and moving to /usr/local._
 
-### Installation:
+
+## Prerequisites
+
+Make sure the following tools are installed on your system:
+- `go`
+- `wget` - for downloading Go releases
+- `tar` - for extracting archives
+
+## Installation
+
+### Clone and Build
 ```
 git clone https://github.com/joybiswas007/go-dl
-```
-
-```
+cd go-dl
 go mod tidy
+go build -o go-dl main.go
+sudo mv go-dl /usr/local/bin/
 ```
 
+## Usage
+
 ```
-go run main.go
+go-dl
+
+# Show help
+go-dl --help
+
 ```
