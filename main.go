@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,14 +18,32 @@ const (
 	BASE_URL = "https://go.dev/dl/"
 )
 
+var banner = `
+ ██████╗  ██████╗       ██████╗ ██╗     
+██╔════╝ ██╔═══██╗      ██╔══██╗██║     
+██║  ███╗██║   ██║█████╗██║  ██║██║     
+██║   ██║██║   ██║╚════╝██║  ██║██║     
+╚██████╔╝╚██████╔╝      ██████╔╝███████╗
+ ╚═════╝  ╚═════╝       ╚═════╝ ╚══════╝
+`
+
 func main() {
-	// Check required dependencies
-	cmds := []string{"wget", "tar"}
-	for _, cmd := range cmds {
-		if _, err := exec.LookPath(cmd); err != nil {
-			fmt.Printf("❌ Required command \"%s\" is not installed. Please install it to proceed.\n", cmd)
-			return
+	fmt.Println(banner)
+	var doctor bool
+
+	flag.BoolVar(&doctor, "doctor", false, "Run a system check to verify that all required packages are installed")
+	flag.Parse()
+
+	if doctor {
+		cmds := []string{"wget", "tar", "sudo", "chown"}
+		for _, cmd := range cmds {
+			if _, err := exec.LookPath(cmd); err != nil {
+				fmt.Printf("❌ \"%s\" is not installed. Please install it to proceed.\n", cmd)
+				continue
+			}
 		}
+		fmt.Println("Dependencies check passed successfully")
+		return
 	}
 
 	values := url.Values{}
