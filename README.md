@@ -7,7 +7,13 @@ Make sure `go`, `tar`, `wget` is installed.
 
 ### Installation:
 ```
-go install github.com/joybiswas007/go-dl@latest
+git clone https://github.com/joybiswas007/go-dl
 ```
 
-And run `go-dl`
+```
+go mod tidy
+```
+
+```
+go run main.go
+```

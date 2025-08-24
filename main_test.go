@@ -81,7 +81,7 @@ func TestGetReleases(t *testing.T) {
 
 		want := "v1.25.0"
 
-		got := WithVPrefix("go1.25.0")
+		got := withVPrefix("go1.25.0")
 		if want != got {
 			t.Fatalf("wanted %s, got %s", want, got)
 		}

@@ -9,63 +9,58 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
-
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
-const BASE_URL = "https://go.dev/dl/"
-
-var (
-	releases Releases
+const (
+	BASE_URL = "https://go.dev/dl/"
 )
 
 func main() {
+	// Check required dependencies
 	cmds := []string{"wget", "tar"}
 	for _, cmd := range cmds {
 		if _, err := exec.LookPath(cmd); err != nil {
-			fmt.Printf("❌ \"%s\" is not installed. Please install it to proceed.\n", cmd)
+			fmt.Printf("❌ Required command \"%s\" is not installed. Please install it to proceed.\n", cmd)
 			return
 		}
 	}
 
 	values := url.Values{}
 	values.Add("mode", "json")
-	urlWithParams := fmt.Sprintf("%s?", BASE_URL) + values.Encode()
+	urlWithParams := fmt.Sprintf("%s?%s", BASE_URL, values.Encode())
 
-	rls, err := GetReleases(&http.Client{}, urlWithParams)
+	releases, err := GetReleases(&http.Client{}, urlWithParams)
 	if err != nil {
 		log.Fatal(err)
 	}
-	releases = rls
 
-	var items []list.Item
-	for _, r := range releases {
-		items = append(items, item(r.Version))
+	fmt.Println("Available versions...")
+	for i, r := range releases {
+		if r.Stable {
+			fmt.Printf("%d. %s (stable)\n", i+1, withVPrefix(r.Version))
+		} else {
+			fmt.Printf("%d. %s (unstable)\n", i+1, withVPrefix(r.Version))
+		}
+	}
+	var input int
+	fmt.Printf("Enter your choice (1-%d): ", len(releases))
+	fmt.Scanln(&input)
+
+	if input == 0 || input > len(releases) {
+		log.Fatalf("Please select a number between 1 and %d\n", len(releases))
 	}
 
-	const defaultWidth = 20
+	release := releases[input-1]
+	fmt.Printf("Selected: %s\n\n", withVPrefix(release.Version))
 
-	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
-	l.Title = "Versions available for download"
-	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(false)
-	l.Styles.Title = titleStyle
-	l.Styles.PaginationStyle = paginationStyle
-	l.Styles.HelpStyle = helpStyle
-
-	m := model{list: l}
-
-	if _, err := tea.NewProgram(m).Run(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}
-
+	fmt.Println("Starting installation...")
+	downloadAndInstallGo(release)
 }
 
-// WithVPrefix normalizes a Go version string to have a leading "v" as required by semver.Compare.
-func WithVPrefix(v string) string {
+// withVPrefix normalizes a Go version string to have a leading "v"
+func withVPrefix(v string) string {
 	v = strings.TrimPrefix(v, "go")
 	if !strings.HasPrefix(v, "v") {
 		v = "v" + v
@@ -87,13 +82,39 @@ func execCmd(args []string) {
 	}
 }
 
-// Limit returns at most the first k elements of xs.
-// If k <= 0 or xs has length <= k, it returns xs unchanged.
-func Limit[T any](xs []T, k int) []T {
-	if k <= 0 || len(xs) <= k {
-		return xs
+func downloadAndInstallGo(release Release) {
+	for _, file := range release.Files {
+		if runtime.GOARCH == file.Arch && runtime.GOOS == file.Os {
+			dlURL := fmt.Sprintf("%s%s", BASE_URL, file.Filename)
+			dlCmd := []string{"wget", "-c", "--tries=5", "--read-timeout=10", "-P", "/tmp", dlURL}
+			execCmd(dlCmd)
+
+			dlPath := fmt.Sprintf("/tmp/%s", file.Filename)
+
+			// unarchive
+			execCmd([]string{"tar", "-xzvf", dlPath, "-C", "/tmp"})
+
+			// delete the archive file
+			execCmd([]string{"rm", "-rf", dlPath})
+
+			// Now check if already installed version exist
+			// If exist remove the directory
+			existingDir := "/usr/local/go"
+			if _, err := os.Stat(existingDir); err == nil {
+				execCmd([]string{"sudo", "rm", "-rf", existingDir})
+			}
+
+			src := "/tmp/go"
+
+			// change permission
+			execCmd([]string{"sudo", "chown", "-R", "root:root", src})
+
+			// move to /usr/local
+			execCmd([]string{"sudo", "mv", "-v", src, "/usr/local"})
+
+			execCmd([]string{"go", "version"})
+		}
 	}
-	return xs[:k]
 }
 
 // GetReleases fetches release metadata from baseURL using the provided HTTP client.
@@ -102,7 +123,7 @@ func GetReleases(client *http.Client, baseURL string) (Releases, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("referer", "https://go.dev/dl/")
+	req.Header.Set("referer", BASE_URL)
 	req.Header.Set("user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
 
 	resp, err := client.Do(req)
@@ -122,12 +143,9 @@ func GetReleases(client *http.Client, baseURL string) (Releases, error) {
 	return rl, nil
 }
 
-type remote struct {
-	idx     int
-	version string
-}
+type Releases []Release
 
-type Releases []struct {
+type Release struct {
 	Version string `json:"version"`
 	Stable  bool   `json:"stable"`
 	Files   []File `json:"files"`
