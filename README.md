@@ -15,7 +15,7 @@ Make sure the following tools are installed on your system:
 ## Installation
 ### Method 1 (Recommended)
 ```
-go install github.com/joybiswas007/go-up@latest   
+go install github.com/joybiswas007/go-dl@latest   
 ```
 ### Method 2
 ### Clone and Build
