@@ -29,6 +29,7 @@ var banner = `
 
 func main() {
 	fmt.Println(banner)
+	checkGOPATH()
 	var doctor bool
 
 	flag.Usage = func() {
@@ -142,6 +143,17 @@ func downloadAndInstallGo(release Release) {
 
 			execCmd([]string{"go", "version"})
 		}
+	}
+}
+
+func checkGOPATH() {
+	if _, isSet := os.LookupEnv("GOPATH"); !isSet {
+		fmt.Println("$GOPATH environment variable is not set.")
+		fmt.Println("Please add the following lines to your ~/.bashrc or ~/.zshrc file, then restart your shell:")
+		fmt.Println()
+		fmt.Println("export GOPATH=$HOME/go")
+		fmt.Println("export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin")
+		fmt.Println()
 	}
 }
 
