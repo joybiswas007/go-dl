@@ -8,12 +8,16 @@
 ## Prerequisites
 
 Make sure the following tools are installed on your system:
-- `go`
+- `go` 
 - `wget` - for downloading Go releases
 - `tar` - for extracting archives
 
 ## Installation
-
+### Method 1 (Recommended)
+```
+go install github.com/joybiswas007/go-up@latest   
+```
+### Method 2
 ### Clone and Build
 ```
 git clone https://github.com/joybiswas007/go-dl
@@ -30,5 +34,4 @@ go-dl
 
 # Show help
 go-dl --help
-
 ```
