@@ -29,13 +29,13 @@ func TestGetReleases(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		t.Helper()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_ = json.NewEncoder(w).Encode(releases)
 		}))
 
 		defer srv.Close()
 
-		got, err := GetReleases(srv.Client(), srv.URL)
+		got, err := getReleases(srv.Client(), srv.URL)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -47,13 +47,13 @@ func TestGetReleases(t *testing.T) {
 
 	t.Run("invalid json", func(t *testing.T) {
 		t.Helper()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("not json"))
 		}))
 
 		defer srv.Close()
 
-		_, err := GetReleases(srv.Client(), srv.URL)
+		_, err := getReleases(srv.Client(), srv.URL)
 		if err == nil {
 			t.Errorf("expected json decode error, got nil")
 		}
@@ -62,13 +62,13 @@ func TestGetReleases(t *testing.T) {
 	t.Run("non 200 response", func(t *testing.T) {
 		t.Helper()
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "bad request", http.StatusBadRequest)
 		}))
 
 		defer srv.Close()
 
-		_, err := GetReleases(srv.Client(), srv.URL)
+		_, err := getReleases(srv.Client(), srv.URL)
 		if err != nil {
 			if errors.Is(err, errors.New("400 Bad Request")) {
 				t.Errorf("expected 400 error, got %v", err)

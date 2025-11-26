@@ -1,3 +1,4 @@
+// Package main
 package main
 
 import (
@@ -15,7 +16,7 @@ import (
 )
 
 const (
-	BASE_URL = "https://go.dev/dl/"
+	BaseURL = "https://go.dev/dl/"
 )
 
 var banner = `
@@ -33,10 +34,10 @@ func main() {
 	var doctor bool
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "go-dl - Automate Go Setup\n")
+		fmt.Fprintf(os.Stderr, "go-dl - Automate Go download & install setup\n")
 		fmt.Fprintf(os.Stderr, "=========================\n\n")
 
-		fmt.Fprintf(os.Stderr, "💡 Why go-dl?\n")
+		fmt.Fprintf(os.Stderr, " Why go-dl?\n")
 		fmt.Fprintf(os.Stderr, "   • Just select a version and let go-dl handle everything!\n\n")
 	}
 	flag.BoolVar(&doctor, "doctor", false, "Run a system check to verify that all required packages are installed")
@@ -56,9 +57,9 @@ func main() {
 
 	values := url.Values{}
 	values.Add("mode", "json")
-	urlWithParams := fmt.Sprintf("%s?%s", BASE_URL, values.Encode())
+	urlWithParams := fmt.Sprintf("%s?%s", BaseURL, values.Encode())
 
-	releases, err := GetReleases(&http.Client{}, urlWithParams)
+	releases, err := getReleases(&http.Client{}, urlWithParams)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -88,7 +89,7 @@ func main() {
 	downloadAndInstallGo(release)
 }
 
-// withVPrefix normalizes a Go version string to have a leading "v"
+// withVPrefix normalizes a Go version string to have a leading "v".
 func withVPrefix(v string) string {
 	v = strings.TrimPrefix(v, "go")
 	if !strings.HasPrefix(v, "v") {
@@ -113,36 +114,38 @@ func execCmd(args []string) {
 
 func downloadAndInstallGo(release Release) {
 	for _, file := range release.Files {
-		if runtime.GOARCH == file.Arch && runtime.GOOS == file.Os {
-			dlURL := fmt.Sprintf("%s%s", BASE_URL, file.Filename)
-			dlCmd := []string{"wget", "-c", "--tries=5", "--read-timeout=10", "-P", "/tmp", dlURL}
-			execCmd(dlCmd)
-
-			dlPath := fmt.Sprintf("/tmp/%s", file.Filename)
-
-			// unarchive
-			execCmd([]string{"tar", "-xzvf", dlPath, "-C", "/tmp"})
-
-			// delete the archive file
-			execCmd([]string{"rm", "-rf", dlPath})
-
-			// Now check if already installed version exist
-			// If exist remove the directory
-			existingDir := "/usr/local/go"
-			if _, err := os.Stat(existingDir); err == nil {
-				execCmd([]string{"sudo", "rm", "-rf", existingDir})
-			}
-
-			src := "/tmp/go"
-
-			// change permission
-			execCmd([]string{"sudo", "chown", "-R", "root:root", src})
-
-			// move to /usr/local
-			execCmd([]string{"sudo", "mv", "-v", src, "/usr/local"})
-
-			execCmd([]string{"go", "version"})
+		// If Arch doesn't match OR OS doesn't match -> Skip (continue)
+		if runtime.GOARCH != file.Arch || runtime.GOOS != file.Os {
+			continue
 		}
+		dlURL := fmt.Sprintf("%s%s", BaseURL, file.Filename)
+		dlCmd := []string{"wget", "-c", "--tries=5", "--read-timeout=10", "-P", "/tmp", dlURL}
+		execCmd(dlCmd)
+
+		dlPath := fmt.Sprintf("/tmp/%s", file.Filename)
+
+		// unarchive
+		execCmd([]string{"tar", "-xzvf", dlPath, "-C", "/tmp"})
+
+		// delete the archive file
+		execCmd([]string{"rm", "-rf", dlPath})
+
+		// Now check if already installed version exist
+		// If exist remove the directory
+		existingDir := "/usr/local/go"
+		if _, err := os.Stat(existingDir); err == nil {
+			execCmd([]string{"sudo", "rm", "-rf", existingDir})
+		}
+
+		src := "/tmp/go"
+
+		// change permission
+		execCmd([]string{"sudo", "chown", "-R", "root:root", src})
+
+		// move to /usr/local
+		execCmd([]string{"sudo", "mv", "-v", src, "/usr/local"})
+
+		execCmd([]string{"go", "version"})
 	}
 }
 
@@ -157,13 +160,13 @@ func checkGOPATH() {
 	}
 }
 
-// GetReleases fetches release metadata from baseURL using the provided HTTP client.
-func GetReleases(client *http.Client, baseURL string) (Releases, error) {
-	req, err := http.NewRequest(http.MethodGet, baseURL, nil)
+// getReleases fetches release metadata from baseURL using the provided HTTP client.
+func getReleases(client *http.Client, dlURL string) (Releases, error) {
+	req, err := http.NewRequest(http.MethodGet, dlURL, http.NoBody)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("referer", BASE_URL)
+	req.Header.Set("referer", BaseURL)
 	req.Header.Set("user-agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36")
 
 	resp, err := client.Do(req)
