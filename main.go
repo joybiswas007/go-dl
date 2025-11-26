@@ -34,7 +34,7 @@ func main() {
 	var doctor bool
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "go-dl - Automate Go download & install setup\n")
+		fmt.Fprintf(os.Stderr, "go-dl - Automate Go download & installation\n")
 		fmt.Fprintf(os.Stderr, "=========================\n\n")
 
 		fmt.Fprintf(os.Stderr, " Why go-dl?\n")
